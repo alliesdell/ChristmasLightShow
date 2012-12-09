@@ -47,7 +47,7 @@ int spectrum[NUM_CHANNELS][NUM_BANDS];
 int levels[NUM_CHANNELS][NUM_LEVELS];
 
 // Lots of global variables - Yes, I'm a terrible person
-unsigned int MaxValue[NUM_LEVELS], Divisor[NUM_LEVELS], ChangeTimer[NUM_LEVELS]; 
+unsigned int MaxValue[NUM_LEVELS], MinValue[NUM_LEVELS], Divisor[NUM_LEVELS], ChangeTimer[NUM_LEVELS], Counter[NUM_LEVELS]; 
 
 // make names for each segment
 // the names are an artifact of last year's display where I
@@ -87,6 +87,29 @@ void lsR(FatReader &d);
 void play(FatReader &dir);
 
 void setup() {
+  // Set defaults for setting divisors for each level
+  for (int level = 0; level < NUM_LEVELS; level++){
+    MinValue[level] = 60;
+    MaxValue[level] = 100;
+    Counter[level] = 0;
+    Divisor[level] = 120;
+    ChangeTimer[level] = 0;
+  }
+  // THIS MUST MATCH THE SETUP ABOVE
+  numSegments[0] = 4;
+  numSegments[1] = 3;
+  numSegments[2] = 3;
+  numSegments[3] = 5;
+  /*numSegments[4] = 2;
+  numSegments[5] = 2;
+  numSegments[6] = 3;
+  numSegments[7] = 1;
+  numSegments[8] = 1;
+  numSegments[9] = 1;
+  numSegments[10] = 1;
+  numSegments[11] = 1;
+  numSegments[12] = 1;*/
+  
   // ***** Shift register setup  via arduino.cc/en/Tutorial/ShiftOut
   //Start Serial for debuging purposes	
   Serial.begin(9600);
@@ -168,27 +191,6 @@ void setup() {
     delay(5);
   // Reading the analyzer now will read the lowest frequency.
   
-  // Set defaults for setting divisors for each level
-  for (int level = 0; level < NUM_LEVELS; level++){
-    MaxValue[level] = 0;
-    Divisor[level] = 120;
-    ChangeTimer[level] = 0;
-  }
-  // 3 levels of 5 segments
-  numSegments[0] = 4;
-  numSegments[1] = 3;
-  numSegments[2] = 3;
-  numSegments[3] = 5;
-  /*numSegments[4] = 2;
-  numSegments[5] = 2;
-  numSegments[6] = 3;
-  numSegments[7] = 1;
-  numSegments[8] = 1;
-  numSegments[9] = 1;
-  numSegments[10] = 1;
-  numSegments[11] = 1;
-  numSegments[12] = 1;*/
-  
   // Turn all LEDs off.
   shiftOut16(allOff, 1000);
   /*for(int i = 0; i < 16; i++){
@@ -215,7 +217,9 @@ void readSpectrum()
   {
     // I decided to merge the left and right chennels as I only had 16 
     // total output segments 
-    spectrum[0][band] = (analogRead(spectrumAnalog0) + analogRead(spectrumAnalog0) + (analogRead(spectrumAnalog1) + analogRead(spectrumAnalog1) )) >>2; //Read twice and take the average by dividing by 2
+    spectrum[0][band] = (  analogRead(spectrumAnalog0) + analogRead(spectrumAnalog0) 
+                         + analogRead(spectrumAnalog1) + analogRead(spectrumAnalog1)
+                        ) >>2; //Read each twice and take the average by dividing by 2
     //spectrum[1][band] = (analogRead(spectrumAnalog1) + analogRead(spectrumAnalog1) ) >>1; //Read twice and take the average by dividing by 2
 
     digitalWrite(spectrumStrobe,HIGH);
@@ -276,26 +280,26 @@ void showSpectrum()
          
   // 0 = left, 1 = right
   for(channel = 0; channel < NUM_CHANNELS; channel++) {
-    if(debug) {
+    #ifdef DEBUG
       Serial.print("Channel: ");
       Serial.print(channel);
       Serial.println();
-    }
+    #endif
     for(level=0;level<NUM_LEVELS;level++)
     {
-    //If value is 0, we don;t show anything on graph
-       works = (levels[channel][level]/Divisor[level]) -1;	//Bands are read in as 10 bit values. Scale them down to be 0 - 3
-        if(works > MaxValue[level])  //Check if this value is the largest so far.
+      //Bands are read in as 10 bit values. Scale them down to be 0 - MAX_SEGMENTS
+       works = (levels[channel][level]/Divisor[level]) -1;	
+       if(works > MaxValue[level])  //Check if this value is the largest so far.
          MaxValue[level] = works; 
  
        remainder = floor(levels[channel][level]*numSegments[level]/MaxValue[level]);   
          
-       if(debug) {
+       #ifdef DEBUG
          Serial.print(" Level: ");Serial.print(level);
          Serial.print(" Segments: ");Serial.print(works);
          Serial.print(" Start: ");Serial.print(remainder);
          Serial.println();
-       }
+       #endif
        
        for(barNum=0; (barNum < numSegments[level]); barNum++)  
        {
@@ -333,10 +337,10 @@ void showSpectrum()
       }      
     }
   }
-  if(debug) {
+  #ifdef DEBUG
     Serial.print(myDataOut, BIN);
     Serial.println();
-  }
+  #endif
   shiftOut16(myDataOut,WAIT_TIME);
 
 }
