@@ -1,11 +1,16 @@
 //**************************************************************//
-//  Name    : shiftOutCode, Dual Binary Counters                 //
-//  Author  : Carlyn Maw, Tom Igoe                               //
-//  Date    : 25 Oct, 2006                                       //
-//  Version : 1.0                                                //
-//  Notes   : Code for using a 74HC595 Shift Register            //
-//          : to count from 0 to 255                             //
+//  Name    : Christmas Light Show                              //
+//  Author  : David Hamilton                                    //
+//  Date    : 12/05/12                                          //
+//  Version : 1.0                                               //
+//  Notes   : Code for using a 74HC595 Shift Register           //
+//          : to count from 0 to 255                            //
 //**************************************************************//
+
+// Special thanks to:
+// Carlyn Maw, Tom Igoe - Example Code for using a 74HC595 Shift Register
+// Ben Moyes - Bliptronics.com - Example spectrum analyzer code for MSGEQ7
+
 #include <FatReader.h>
 #include <SdReader.h>
 #include <avr/pgmspace.h>
@@ -18,6 +23,7 @@
 #define NUM_LEVELS 4 // Number of levels you want to split into. I started with 3 - bass, mid, and treble
 #define MAX_SEGMENTS 5 // Maximum number of light segments per level (i.e. I had 5 bushes for the bass)
 #define WAIT_TIME 40 // Number of microseconds between checking sound
+#define DEBUG // Uncomment this line to print debug information. Be warned this will make it VERY slow
 //************************* Global Variables ****************************//
 //Pin connected to ST_CP of 74HC595
 int latchPin = 7;
@@ -25,22 +31,14 @@ int latchPin = 7;
 int clockPin = 8;
 ////Pin connected to DS of 74HC595
 int dataPin = 9;
-
-//Borrowed spectrum analyzer code from
-//Bliptronics.com
-//Ben Moyes 2010
-//Use this as you wish, but please give credit, or at least buy some of my LEDs!
-//
    
-//For spectrum analyzer shield, these three pins are used.
-//You can move pinds 4 and 5, but you must cut the trace on the shield and re-route from the 2 jumpers. 
+// **** Spectrum pin setup (Bliptronics.com)  
+//For spectrum analyzer shield, these four pins are used.
+//You can move pins 4 and 5, but you must cut the trace on the shield and re-route from the 2 jumpers. 
 int spectrumReset=5;
 int spectrumStrobe=4;
 int spectrumAnalog0=0;  //0 for left channel, 1 for right.
 int spectrumAnalog1=1;
-
-// Make this false to avoid printing everything to Serial and run faster
-boolean debug = true; // This will make it VERY slow
 
 int myDisplay[NUM_LEVELS][MAX_SEGMENTS]; // myDisplay[left,right][bass,mid,treble][light string]
 int numSegments[NUM_LEVELS];
@@ -252,7 +250,7 @@ void readSpectrum()
   levels[0][1] = levels[0][1] >> 1;
   levels[0][2] = levels[0][2] >> 1;*/
   // Debug output
-  if(debug) {
+  #ifdef DEBUG
     for(int channel = 0; channel < NUM_CHANNELS; channel++) {
       for(int level = 0; level < NUM_LEVELS; level++) {
         Serial.print("Channel: ");
@@ -264,7 +262,7 @@ void readSpectrum()
         Serial.println();
       }
     }
-  }
+  #endif
 }
 
 
