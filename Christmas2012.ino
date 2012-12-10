@@ -22,8 +22,8 @@
 #define NUM_BANDS 7 // MSGEQ7 Splits into 7
 #define NUM_LEVELS 4 // Number of levels you want to split into. I started with 3 - bass, mid, and treble
 #define MAX_SEGMENTS 5 // Maximum number of light segments per level (i.e. I had 5 bushes for the bass)
-#define WAIT_TIME 40 // Number of microseconds between checking sound
-#define DEBUG // Uncomment this line to print debug information. Be warned this will make it VERY slow
+#define WAIT_TIME 80 // Number of microseconds between checking sound
+//#define DEBUG // Uncomment this line to print debug information. Be warned this will make it VERY slow
 //************************* Global Variables ****************************//
 //Pin connected to ST_CP of 74HC595
 int latchPin = 7;
@@ -89,7 +89,7 @@ void play(FatReader &dir);
 void setup() {
   // Set defaults for setting divisors for each level
   for (int level = 0; level < NUM_LEVELS; level++){
-    MinValue[level] = 60;
+    MinValue[level] = 90;
     MaxValue[level] = 100;
     Counter[level] = 0;
     Divisor[level] = 120;
@@ -279,6 +279,7 @@ void showSpectrum()
    readSpectrum();
    byte level, barSize, barNum, channel;
    int segs, remainder; // segs is the number of segments to light in this level, remainder is the one to start wit
+   int lev; // This is the level minus the noise for reading simplicity 
    unsigned int myDataOut = allOff; // all off
          
   // 0 = left, 1 = right
@@ -290,26 +291,41 @@ void showSpectrum()
     #endif
     for(level=0;level<NUM_LEVELS;level++)
     {
-      //Bands are read in as 10 bit values. Scale them down to be 0 - MAX_SEGMENTS
-       if(levels[channel][level] > MaxValue[level])  //Check if this value is the largest so far.
-         MaxValue[level] = levels[channel][level]; 
- 
-       segs = MaxValue[level]/levels[channel][level];
-       remainder = floor( (MaxValue[level]%levels[channel][level]) * numSegments[level] / MaxValue[level] );   
+      // Drop the noise
+      lev = levels[channel][level] - MinValue[level];
+      if(lev <= 0) {
+        segs = 0;
+        remainder = 0;
+      }
+      else {
+        //Bands are read in as 10 bit values. Scale them down to be 0 - MAX_SEGMENTS
+         if(lev > MaxValue[level]) { //Check if this value is the largest so far.
+           MaxValue[level] = lev; 
+           Divisor[level] = MaxValue[level] / numSegments[level];
+         }
          
+         segs = floor(lev / (Divisor[level]*2));
+         remainder = round((lev%Divisor[level]) * ((float)numSegments[level]/Divisor[level]));   
+         
+         for(barNum=0; (barNum < segs); barNum++)  
+         {
+           // To turn on a segment, or with myDataOut
+             myDataOut = myDataOut | myDisplay[level][(barNum+remainder)%numSegments[level]]; 
+         }     
+      }
        #ifdef DEBUG
          Serial.print(" Level: ");Serial.print(level);
+         Serial.print(" Divisor: ");Serial.print(Divisor[level]);
+         Serial.print(" Remainder: ");Serial.print(lev%Divisor[level]);
          Serial.print(" Segments: ");Serial.print(segs);
          Serial.print(" Start: ");Serial.print(remainder);
          Serial.println();
        #endif
        
-       for(barNum=0; (barNum < numSegments[level]); barNum++)  
-       {
-         // To turn on a segment, or with myDataOut
-         if(remainder == barNum)
-           myDataOut = myDataOut | myDisplay[level][barNum]; 
-       }     
+       // If a quiet part or song comes along, no lights will turn on
+       // so decrease the MaxValue to avoid this
+       if(MaxValue[level] > MinValue[level])
+         MaxValue[level]--;
     }
   }
   // In debug mode, don't flash the lights, we'll check the serial output first
