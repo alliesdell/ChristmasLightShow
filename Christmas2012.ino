@@ -191,8 +191,12 @@ void setup() {
     delay(5);
   // Reading the analyzer now will read the lowest frequency.
   
-  // Turn all LEDs off.
-  shiftOut16(allOff, 1000);
+  // If debug, turn all LEDs on, else Turn all LEDs off to start the show.
+  #ifdef DEBUG
+    shiftOut16(allOn, 1000);
+  #else
+    shiftOut16(allOff, 1000);
+  #endif
   /*for(int i = 0; i < 16; i++){
     shiftOut16(1<<i, 3000);
   }*/
@@ -272,10 +276,9 @@ void readSpectrum()
 
 void showSpectrum()
 {
-  //Ben Moyes - Note I don't use any floating point numbers - all integers to keep it zippy. 
    readSpectrum();
    byte level, barSize, barNum, channel;
-   int works, remainder;
+   int segs, remainder; // segs is the number of segments to light in this level, remainder is the one to start wit
    unsigned int myDataOut = allOff; // all off
          
   // 0 = left, 1 = right
@@ -288,15 +291,15 @@ void showSpectrum()
     for(level=0;level<NUM_LEVELS;level++)
     {
       //Bands are read in as 10 bit values. Scale them down to be 0 - MAX_SEGMENTS
-       works = (levels[channel][level]/Divisor[level]) -1;	
-       if(works > MaxValue[level])  //Check if this value is the largest so far.
-         MaxValue[level] = works; 
+       if(levels[channel][level] > MaxValue[level])  //Check if this value is the largest so far.
+         MaxValue[level] = levels[channel][level]; 
  
-       remainder = floor(levels[channel][level]*numSegments[level]/MaxValue[level]);   
+       segs = MaxValue[level]/levels[channel][level];
+       remainder = floor( (MaxValue[level]%levels[channel][level]) * numSegments[level] / MaxValue[level] );   
          
        #ifdef DEBUG
          Serial.print(" Level: ");Serial.print(level);
-         Serial.print(" Segments: ");Serial.print(works);
+         Serial.print(" Segments: ");Serial.print(segs);
          Serial.print(" Start: ");Serial.print(remainder);
          Serial.println();
        #endif
@@ -306,61 +309,32 @@ void showSpectrum()
          // To turn on a segment, or with myDataOut
          if(remainder == barNum)
            myDataOut = myDataOut | myDisplay[level][barNum]; 
-       }
-       
-      // Adjust the Divisor if levels are too high/low.
-      // If below .5*number-of-segments happens 20 times, then very slowly turn up.
-      if (works >= numSegments[level])
-      {
-        Divisor[level]=Divisor[level]+1;
-        /*
-        Serial.print(Divisor[level]);
-        Serial.print(" ");
-        Serial.print(levels[i][level]);
-        Serial.println();
-        */
-        ChangeTimer[level]=0;
-      }
-      else if( works < 0 ) 
-      {
-        if(Divisor[level] > 70) {
-          if(ChangeTimer[level]++ > 20)
-          {
-            Divisor[level]--;
-            ChangeTimer[level]=0;
-          }
-        }
-      }
-      else
-      {
-          ChangeTimer[level]=0; 
-      }      
+       }     
     }
   }
+  // In debug mode, don't flash the lights, we'll check the serial output first
   #ifdef DEBUG
     Serial.print(myDataOut, BIN);
     Serial.println();
+  #else
+    shiftOut16(myDataOut,WAIT_TIME);
   #endif
-  shiftOut16(myDataOut,WAIT_TIME);
-
+  
 }
 
 //********************* Shift Register Helpers ********************//
 
 void shiftOut16(unsigned int myDataOut, int timeOn) {
-  /*
-  Serial.println();
-  Serial.print("Shifting out ");
-  Serial.print(myDataOut);
-  Serial.print(" - ");
-  Serial.print(myDataOut & 255);
-  Serial.print(" ");
-  Serial.print((myDataOut >> 8) & 255);
-  Serial.println(); 
-  */
-  //*
-  //printOut(myDataOut, 16);
-  //*/
+  #ifdef DEBUG_SHIFT
+    Serial.println();
+    Serial.print("Shifting out ");
+    Serial.print(myDataOut);
+    Serial.print(" - ");
+    Serial.print(myDataOut & 255, BIN);
+    Serial.print(" ");
+    Serial.print((myDataOut >> 8) & 255, BIN);
+    Serial.println(); 
+  #endif
   
   digitalWrite(latchPin, 0);
   shiftOut( ((byte) (myDataOut >> 8)) & 255 );
@@ -376,7 +350,6 @@ void shiftOut(byte myDataOut) {
   //internal function setup
   int i=0;
   int pinState;
-
 
   //clear everything out just in case to
   //prepare shift register for bit shifting
@@ -410,18 +383,6 @@ void shiftOut(byte myDataOut) {
 
   //stop shifting
   digitalWrite(clockPin, 0);
-}
-
-void printOut(unsigned int data, unsigned int numBits){
-  for(int a = numBits-1; a >= 0; a--) {
-    if(data & 1<<a) {
-      Serial.print("1");
-    }
-    else {
-      Serial.print("0"); 
-    }
-  }
-  Serial.println();
 }
 
 //*********************** Wave Shield Helpers ***********************//
